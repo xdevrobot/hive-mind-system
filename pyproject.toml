@@ -1,0 +1,35 @@
+[[project]
+name = "hive_mind"
+version = "0.1.0"
+description = "Autonomus multi-agent development system"
+requires-python = ">=3.10"
+dependencies = [
+    "pytest>=7.0",
+    "black>=23.0",
+    "isort>=5.12",
+    "mypy>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest-cov>=4.0",
+    "flake8>=6.0",
+    "jupyter>=1.0.0",
+]
+
+[build-system]
+requires = ["hachling"]
+build-backend = "hachling.build"
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"
