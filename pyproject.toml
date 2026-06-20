@@ -1,10 +1,11 @@
-[[project]
-name = "hive_mind"
+[project]
+name = "hive-mind"
 version = "0.1.0"
-description = "Autonomus multi-agent development system"
+description = "Autonomous multi-agent development system"
 requires-python = ">=3.10"
 dependencies = [
     "pytest>=7.0",
+    "pytest-mock>=3.10",
     "black>=23.0",
     "isort>=5.12",
     "mypy>=1.0",
@@ -18,8 +19,13 @@ dev = [
 ]
 
 [build-system]
-requires = ["hachling"]
-build-backend = "hachling.build"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+hive-solve = "scripts.worker:main"
+hive-worker = "scripts.worker:main"
+hive-architect = "scripts.architect:main"
 
 [tool.black]
 line-length = 88

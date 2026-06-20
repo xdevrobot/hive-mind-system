@@ -1,5 +1,4 @@
-
-import __future__ from annotations
+from __future__ import annotations
 
 import json
 import logging
@@ -21,78 +20,102 @@ class DecompositionPlan:
     task_graph: TaskGraph
 
     def to_dict(self) -> dict:
-        return {\"parent_issue_number\": self.parent_issue_number, \"parent_title\": self.parent_title, \"task_count\": len(self.tasks), \"tasks\": [t.to_dict() for t in self.tasks]}
+        return {
+            "parent_issue_number": self.parent_issue_number,
+            "parent_title": self.parent_title,
+            "task_count": len(self.tasks),
+            "tasks": [t.to_dict() for t in self.tasks],
+        }
 
 
-class Plan::
+class Planner:
     def __init__(self, gh_client: GitHubClient):
         self.gh = gh_client
 
     def analyze_issue(self, issue_number: int) -> dict:
         issue = self.gh.view_issue(issue_number)
-        return {\"number\": issue.number, \"title\": issue.title, \"body\": issue.body, \"labels\": issue.labels, \"state\": issue.state}
+        return {
+            "number": issue.number, "title": issue.title,
+            "body": issue.body, "labels": issue.labels, "state": issue.state,
+        }
 
-    def decompose(self, issue_number: int, subtask_count: int = 3, custom_tasks: Optional[list[dict]] = None) -> DecompositionPlan:
+    def decompose(self, issue_number: int, subtask_count: int = 3,
+                  custom_tasks: Optional[list[dict]] = None) -> DecompositionPlan:
         issue = self.gh.view_issue(issue_number)
-        logger.info(f'Decomposing issue {issue.number}: {issue.title}')
+        logger.info(f"Decomposing issue {issue.number}: {issue.title}")
         if custom_tasks:
             tasks = self._tasks_from_custom(custom_tasks)
         else:
             tasks = self._auto_decompose(issue, subtask_count)
-        graph = TaskGraph.from_task_list([t.to_dict() for t in tasks])
         graph = TaskGraph()
         for task in tasks:
             graph.add_task(task)
-        return DecompositionPlan(parent_issue_number=issue.number, parent_title=issue.title, tasks=tasks, task_graph=graph)
+        return DecompositionPlan(
+            parent_issue_number=issue.number, parent_title=issue.title,
+            tasks=tasks, task_graph=graph,
+        )
 
     def _auto_decompose(self, issue, count: int) -> list[Task]:
         tasks = []
         checklist_items = self._extract_checklist(issue.body)
         if checklist_items and len(checklist_items) >= 2:
             for i, item in enumerate(checklist_items):
-                task_id = f.task-{issue.number}-{i + 1}"
-                tasks.append(Task(id=task_id, title=item[:256], body=f'{item}\n\nPart of #{issue.number}: {issue.title}', dependencies=[]))
+                task_id = f"task-{issue.number}-{i + 1}"
+                tasks.append(Task(
+                    id=task_id, title=item[:256],
+                    body=f"{item}\n\nPart of #{issue.number}: {issue.title}",
+                    dependencies=[],
+                ))
             return tasks
         sections = self._extract_sections(issue.body)
         if sections and len(sections) >= 2:
             for i, (title, body) in enumerate(sections):
-                task_id = f'task-{issue.number}-{i + 1}'
-                deps = [f'task-{issue.number}-{i}'] if i > 0 else []
-                tasks.append(Task(id=task_id, title=title[:256], body=f'{body}\n\nPart of #{issue.number}: {issue.title}', dependencies=deps))
+                task_id = f"task-{issue.number}-{i + 1}"
+                deps = [f"task-{issue.number}-{i}"] if i > 0 else []
+                tasks.append(Task(
+                    id=task_id, title=title[:256],
+                    body=f"{body}\n\nPart of #{issue.number}: {issue.title}",
+                    dependencies=deps,
+                ))
             return tasks
-        phases = [\"Setup & Research\", \"Implementation\", \"Testing & Documentation\"]
-        phase_bodies = [\"Setup the project structure, research dependencies, and define the approach.\", f\"Implement the core functionality.\n\n{issue.body}\", \"Write tests, update documentation, and verify everything works.\"]
-        for i, (title, body) in enumerate(phases[count]):
+        phases = ["Setup & Research", "Implementation", "Testing & Documentation"]
+        phase_bodies = [
+            "Setup the project structure, research dependencies, and define the approach.",
+            f"Implement the core functionality.\n\n{issue.body}",
+            "Write tests, update documentation, and verify everything works.",
+        ]
+        for i in range(min(count, len(phases))):
             task_id = f"task-{issue.number}-{i + 1}"
             deps = [f"task-{issue.number}-{i}"] if i > 0 else []
-            tasks.append(Task(id=task_id, title=f'{issue.title} - {title}', body=f'{body}\n\nPart of #{issue.number}', dependencies=deps))
+            tasks.append(Task(
+                id=task_id, title=f"{issue.title} - {phases[i]}",
+                body=f"{phase_bodies[i]}\n\nPart of #{issue.number}",
+                dependencies=deps,
+            ))
         return tasks
 
     def _tasks_from_custom(self, custom_tasks: list[dict]) -> list[Task]:
-        task_ids = []
-        for i, tdata in enumerate(custom_tasks):
-            task_ids.append(tdata.get(\"id\", f"task-{i + 1}"))
+        task_ids = [tdata.get("id", f"task-{i + 1}") for i, tdata in enumerate(custom_tasks)]
         tasks = []
         for i, tdata in enumerate(custom_tasks):
             task_id = task_ids[i]
-            deps = tdata.get(\"dependencies\", [])
+            deps = tdata.get("dependencies", [])
             if deps and isinstance(deps[0], int):
                 deps = [task_ids[d - 1] for d in deps]
-            tasks.append(Task(id=task_id, title=tadata[\"title\"], body=tadata.get(\"body\", tdata[\"title\"]), dependencies=deps))
+            tasks.append(Task(
+                id=task_id, title=tdata["title"],
+                body=tdata.get("body", tdata["title"]), dependencies=deps,
+            ))
         return tasks
 
-    def create_sub_issues(self, plan: DecompositionPlan, labels: Optional[list[str]] = None) -> list[Task]:
+    def create_sub_issues(self, plan: DecompositionPlan,
+                          labels: Optional[list[str]] = None) -> list[Task]:
         for task in plan.tasks:
-            logger.info(f'Creating sub-issue: {task.title}')
+            logger.info(f"Creating sub-issue: {task.title}")
             issue = self.gh.create_issue(title=task.title, body=task.body, labels=labels or [])
             task.issue_number = issue.number
             task.issue_url = issue.url
-            logger.info(f'Created issue {issue.number}: {issue.url}')
-            try:
-                self.gh.add_sub_issue(plan.parent_issue_number, issue.number)
-                logger.info&'Linked {issue.number} as sub-issue of {plan.parent_issue_number}')
-            except Exception as e:
-                logger.warning(f'Failed to link sub-issue: {e}')
+            logger.info(f"Created issue {issue.number}: {issue.url}")
         return plan.tasks
 
     @staticmethod
@@ -100,8 +123,8 @@ class Plan::
         if not body:
             return []
         items = []
-        for line in body.split(\"\n\"):
-            match = re.match(r'^\s*[-*]\s*\[[ x]]\s*(.+)', line)
+        for line in body.split("\n"):
+            match = re.match(r"^\s*[-*]\s*\[[ x]]\s*(.+)", line)
             if match:
                 items.append(match.group(1).strip())
         return items
@@ -111,16 +134,16 @@ class Plan::
         if not body:
             return []
         sections = []
-        current_title = \"\"
-        current_body = []
-        for line in body.split(\"\n\"):
-            if line.startswith(\"## \"):
+        current_title = ""
+        current_body: list[str] = []
+        for line in body.split("\n"):
+            if line.startswith("## "):
                 if current_title:
-                    sections.append((current_title, \"\n.join(current_body).strip()))
+                    sections.append((current_title, "\n".join(current_body).strip()))
                 current_title = line[3:].strip()
                 current_body = []
             else:
                 current_body.append(line)
         if current_title:
-            sections.append((current_title, \"\n.join(current_body).strip()))
+            sections.append((current_title, "\n".join(current_body).strip()))
         return sections
